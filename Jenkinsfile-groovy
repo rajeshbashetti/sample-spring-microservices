@@ -1,0 +1,79 @@
+import groovy.json.JsonOutput
+import groovy.transform.Field
+import groovy.json.JsonSlurper
+
+node ('build-machinejava') 
+{
+
+      parameters 
+    {
+           string(name: 'Service_Name', defaultValue: 'account-service', description: 'Which service needs to deploy')
+           choice(choices: 'develop\nrelease\nqa\nmaster', description: 'Select the Branch Name' , name: 'Branch_Name')
+           choice(choices: 'Dev\nPreProd\nProd', description: 'Select the runtime environment', name: 'Server_Environment')
+    }
+    
+
+    
+     
+      
+        if ("${BRANCH_NAME}" == 'master')
+       {
+         
+            Checkout()   //  cloning 
+            Build()      // mvn clean install
+            Create_Image() //docker build 
+            docker_image_push() // for pushing the image 
+            deploying_to_k8s() // for k8s deployment
+        
+            
+    
+      }
+}
+
+
+
+def Checkout() 
+{
+    stage('Checkout')
+    {
+    
+        checkout scm
+        
+    }
+    
+}
+def Build() 
+{
+    stage('Build') 
+    {
+       sh "cd ${params.Service_Name} ; mvn clean install " 
+    }
+}
+
+def Create_Image()
+{
+    stage('Create_Image') 
+    {
+        sh "cd $WORKSPACE/${params.Service_Name} ; sudo docker build --tag=${params.Service_Name} ."
+    }
+}
+def docker_image_push()
+{
+      stage('image pushing')
+      {
+            sh "sudo docker login -uankit1111 -pmiet@1234"
+            sh " sudo docker tag ${params.Service_Name} ankit1111/${params.Service_Name}:v1"
+            sh " sudo docker push ankit1111/${params.Service_Name}:v1"
+            
+      }
+} 
+def deploying_to_k8s() {
+      
+stage('k8s deployment') {
+      node ("ansible-machine")
+      {
+            sh "cd /opt ; sudo ansible-playbook devops.yaml"
+            
+      }
+}
+}
